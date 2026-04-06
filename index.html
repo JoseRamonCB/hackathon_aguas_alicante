@@ -8,21 +8,19 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-    <!-- Leaflet -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <!-- Leaflet Heat -->
     <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+
     <!-- Header -->
     <header id="app-header">
         <div class="header-inner">
             <div class="logo">
-                <svg class="logo-icon" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <svg class="logo-icon" viewBox="0 0 32 32" fill="none">
                     <circle cx="16" cy="16" r="14" stroke="currentColor" stroke-width="2"/>
                     <path d="M16 6C16 6 8 14 8 20a8 8 0 0016 0c0-6-8-14-8-14z" fill="currentColor" opacity="0.25"/>
                     <path d="M16 10c0 0-5 5.5-5 9.5a5 5 0 0010 0c0-4-5-9.5-5-9.5z" fill="currentColor" opacity="0.5"/>
@@ -30,79 +28,69 @@
                 <span class="logo-text">Aqua<strong>Detect</strong></span>
             </div>
             <nav class="header-nav">
-                <span class="nav-badge">Dashboard</span>
-                <span class="nav-item">Histórico</span>
-                <span class="nav-item">Configuración</span>
+                <span class="nav-badge">Análisis de Riesgo</span>
+                <span class="nav-item">Dataset 2024</span>
             </nav>
             <div class="header-right">
-                <span class="status-indicator">
+                <span class="status-indicator" id="status-indicator">
                     <span class="status-dot"></span>
-                    Sistema activo
+                    <span id="status-text">Cargando…</span>
                 </span>
             </div>
         </div>
     </header>
 
-    <main id="main-content">
-        <!-- Section 1: Filters -->
+    <!-- Loading overlay -->
+    <div id="loading-overlay">
+        <div class="loading-spinner"></div>
+        <p class="loading-text" id="loading-text">Cargando datos del análisis…</p>
+    </div>
+
+    <main id="main-content" class="hidden">
+
+        <!-- ===== FILTROS ===== -->
         <section id="filters-section" class="section">
             <div class="section-label">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M1 2h14l-5.5 6.5V14l-3-1.5V8.5L1 2z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                Filtros de búsqueda
+                <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M1 2h14l-5.5 6.5V14l-3-1.5V8.5L1 2z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Filtros de detección
             </div>
             <div class="filters-grid">
+
+                <!-- 1. Distrito geográfico -->
                 <div class="filter-group">
-                    <label for="filter-barrio" class="filter-label">Barrio</label>
-                    <select id="filter-barrio" class="filter-select">
-                        <option value="todos">Todos los barrios</option>
-                        <option value="centro" selected>Centro</option>
-                        <option value="pla">Pla del Bon Repós</option>
-                        <option value="carolinas">Carolinas</option>
-                        <option value="san-blas">San Blas</option>
-                        <option value="altozano">Altozano</option>
-                        <option value="benalua">Benalúa</option>
-                        <option value="florida">La Florida</option>
+                    <label for="filter-region" class="filter-label">📍 Distrito</label>
+                    <select id="filter-region" class="filter-select">
+                        <option value="TODOS">Todos los distritos</option>
                     </select>
                 </div>
+
+                <!-- 2. Umbral de riesgo mínimo -->
                 <div class="filter-group">
-                    <label for="filter-zona" class="filter-label">Zona Geográfica</label>
-                    <select id="filter-zona" class="filter-select">
-                        <option value="todas">Todas las zonas</option>
-                        <option value="norte" selected>Zona Norte</option>
-                        <option value="sur">Zona Sur</option>
-                        <option value="este">Zona Este</option>
-                        <option value="oeste">Zona Oeste</option>
+                    <label for="filter-umbral" class="filter-label">⚠️ Umbral de riesgo mínimo</label>
+                    <select id="filter-umbral" class="filter-select">
+                        <option value="0">Sin umbral — todos</option>
+                        <option value="5">≥ 5% — Sospechoso</option>
+                        <option value="15">≥ 15% — Alerta media</option>
+                        <option value="25" selected>≥ 25% — Alerta alta</option>
+                        <option value="35">≥ 35% — Riesgo crítico</option>
                     </select>
                 </div>
+
+                <!-- 3. Período temporal -->
                 <div class="filter-group">
-                    <label for="filter-probabilidad" class="filter-label">Prob. mínima</label>
-                    <select id="filter-probabilidad" class="filter-select">
-                        <option value="0">Cualquiera</option>
-                        <option value="25">≥ 25%</option>
-                        <option value="50" selected>≥ 50%</option>
-                        <option value="75">≥ 75%</option>
-                        <option value="90">≥ 90%</option>
-                    </select>
-                </div>
-                <div class="filter-group">
-                    <label for="filter-periodo" class="filter-label">Período</label>
+                    <label for="filter-periodo" class="filter-label">📅 Período</label>
                     <select id="filter-periodo" class="filter-select">
-                        <option value="7d">Últimos 7 días</option>
-                        <option value="30d" selected>Últimos 30 días</option>
-                        <option value="90d">Últimos 90 días</option>
-                        <option value="1y">Último año</option>
+                        <option value="TODOS">Año completo (2024)</option>
+                        <option value="2024-01,2024-03">Q1 — Ene–Mar</option>
+                        <option value="2024-04,2024-06">Q2 — Abr–Jun</option>
+                        <option value="2024-07,2024-09">Q3 — Jul–Sep</option>
+                        <option value="2024-10,2024-12">Q4 — Oct–Dic</option>
+                        <option value="2024-01,2024-06">1.º Semestre</option>
+                        <option value="2024-07,2024-12">2.º Semestre</option>
                     </select>
                 </div>
-                <div class="filter-group">
-                    <label for="filter-sector" class="filter-label">Sector</label>
-                    <select id="filter-sector" class="filter-select">
-                        <option value="todos">Todos</option>
-                        <option value="A1" selected>Sector A1</option>
-                        <option value="A2">Sector A2</option>
-                        <option value="B1">Sector B1</option>
-                        <option value="B2">Sector B2</option>
-                    </select>
-                </div>
+
+                <!-- 4. Botón analizar -->
                 <div class="filter-group filter-action">
                     <button id="btn-apply-filters" class="btn-primary">
                         <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.5"/><path d="M11.5 11.5L15 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
@@ -110,81 +98,91 @@
                     </button>
                 </div>
             </div>
+
+            <!-- Estadísticas resumen -->
+            <div class="filter-stats" id="filter-stats">
+                <span class="stat-chip" id="stat-contratos">—</span>
+                <span class="stat-chip" id="stat-region">—</span>
+                <span class="stat-chip" id="stat-periodo">—</span>
+                <span class="stat-chip highlight-orange" id="stat-riesgo-max">Pico: —</span>
+                <span class="stat-chip highlight-blue" id="stat-riesgo-avg">Media: —</span>
+                <span class="stat-chip highlight-red" id="stat-alertas">Alertas críticas: —</span>
+            </div>
         </section>
 
-        <!-- Section 2: Patterns + Probability Gauge -->
+        <!-- ===== ANÁLISIS: PATRONES + GAUGE ===== -->
         <section id="analysis-section" class="section">
             <div class="analysis-grid">
-                <!-- Left: Patterns -->
+
+                <!-- Izquierda: Patrones -->
                 <div class="patterns-panel" id="patterns-panel">
                     <div class="panel-header">
                         <h2 class="panel-title">Patrones Detectados</h2>
-                        <span class="panel-subtitle">Centro — Zona Norte — Sector A1</span>
+                        <span class="panel-subtitle" id="patterns-subtitle">—</span>
                     </div>
-                    <div class="patterns-list" id="patterns-list">
-                        <!-- Patterns will be injected by JS -->
-                    </div>
+                    <div class="patterns-list" id="patterns-list"></div>
                 </div>
 
-                <!-- Right: Probability Gauge -->
+                <!-- Derecha: Gauge -->
                 <div class="probability-panel" id="probability-panel">
                     <div class="panel-header">
-                        <h2 class="panel-title">Probabilidad Resultante</h2>
-                        <span class="panel-subtitle">Análisis combinado de patrones</span>
+                        <h2 class="panel-title">Probabilidad de Plantación Ilegal</h2>
+                        <span class="panel-subtitle">Score de riesgo total ponderado</span>
                     </div>
                     <div class="gauge-container">
-                        <canvas id="gauge-chart"></canvas>
-                        <div class="gauge-center" id="gauge-center">
+                        <canvas id="gauge-chart" width="280" height="280"></canvas>
+                        <div class="gauge-center">
                             <span class="gauge-value" id="gauge-value">0%</span>
-                            <span class="gauge-label">Probabilidad</span>
+                            <span class="gauge-label">Score de riesgo</span>
                         </div>
                     </div>
                     <div class="risk-badge" id="risk-badge">
                         <span class="risk-dot"></span>
-                        <span class="risk-text">Riesgo Alto</span>
+                        <span class="risk-text">—</span>
                     </div>
+                    <div class="gauge-note" id="gauge-note"></div>
                 </div>
             </div>
         </section>
 
-        <!-- Section 3: Progress Chart -->
+        <!-- ===== EVOLUCIÓN TEMPORAL ===== -->
         <section id="progress-section" class="section">
             <div class="panel-header">
-                <h2 class="panel-title">Evolución Temporal de Patrones</h2>
-                <span class="panel-subtitle">Progresión de detecciones en los últimos 30 días</span>
+                <h2 class="panel-title">Evolución Mensual de Indicadores</h2>
+                <span class="panel-subtitle" id="progress-subtitle">Progresión de scores durante el período seleccionado</span>
             </div>
-            <div class="chart-toggles" id="chart-toggles">
-                <!-- Toggle buttons injected by JS -->
-            </div>
+            <div class="chart-toggles" id="chart-toggles"></div>
             <div class="chart-container">
                 <canvas id="progress-chart"></canvas>
             </div>
         </section>
 
-        <!-- Section 4: Heat Map -->
+        <!-- ===== MAPA DE CALOR ===== -->
         <section id="heatmap-section" class="section">
             <div class="panel-header">
-                <h2 class="panel-title">Mapa de Calor — Probabilidad por Zona</h2>
-                <span class="panel-subtitle">Distribución geográfica de detecciones de riesgo en Alicante</span>
+                <h2 class="panel-title">Mapa de Calor — Riesgo por Zona</h2>
+                <span class="panel-subtitle">Distribución del riesgo promedio anual por distrito en Alicante (global, independiente del filtro)</span>
             </div>
             <div class="map-wrapper">
                 <div id="heatmap" class="heatmap"></div>
             </div>
-            <div class="map-legend" id="map-legend">
-                <span class="legend-label">Baja</span>
+            <div class="map-legend">
+                <span class="legend-label">Riesgo bajo</span>
                 <div class="legend-bar"></div>
-                <span class="legend-label">Alta</span>
+                <span class="legend-label">Riesgo alto</span>
             </div>
         </section>
     </main>
 
-    <!-- Footer -->
     <footer id="app-footer">
         <span>© 2026 AquaDetect — Hackathon Aguas de Alicante</span>
         <span class="footer-sep">|</span>
-        <span>Datos simulados con fines demostrativos</span>
+        <span>Fuente: <strong id="footer-filename">data.js</strong></span>
+        <span class="footer-sep">|</span>
+        <span id="footer-records">—</span>
     </footer>
 
+    <script src="data.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

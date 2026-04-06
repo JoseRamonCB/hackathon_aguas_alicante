@@ -1,510 +1,474 @@
-/* ============================================
-   AquaDetect — Application Logic
-   ============================================ */
+'use strict';
 
-// ========================
-// Mock Data
-// ========================
+/* ============================================================
+   AquaDetect — app.js
+   Datos: data.js (generado desde csv/2_resultados_riesgo_diario.csv)
+   Para actualizar los datos: ejecutar update_data.ps1 o launch.bat
+   ============================================================ */
 
-const PATTERNS = [
-    {
-        id: 'consumo',
-        name: 'Consumo Eléctrico Anómalo',
-        desc: 'Picos de consumo en horarios nocturnos',
-        icon: '⚡',
-        color: '#F59E0B',
-        bgColor: 'rgba(245, 158, 11, 0.12)',
-        value: 82,
-    },
-    {
-        id: 'agua',
-        name: 'Consumo de Agua Elevado',
-        desc: 'Uso desproporcionado respecto a la media',
-        icon: '💧',
-        color: '#3B82F6',
-        bgColor: 'rgba(59, 130, 246, 0.12)',
-        value: 74,
-    },
-    {
-        id: 'termico',
-        name: 'Anomalía Térmica',
-        desc: 'Firma térmica superior a viviendas colindantes',
-        icon: '🌡️',
-        color: '#EF4444',
-        bgColor: 'rgba(239, 68, 68, 0.12)',
-        value: 68,
-    },
-    {
-        id: 'ventilacion',
-        name: 'Sistema de Ventilación',
-        desc: 'Detección de extractores industriales',
-        icon: '🌀',
-        color: '#8B5CF6',
-        bgColor: 'rgba(139, 92, 246, 0.12)',
-        value: 55,
-    },
-    {
-        id: 'actividad',
-        name: 'Patrón de Actividad',
-        desc: 'Movimiento sospechoso en horarios inusuales',
-        icon: '👁️',
-        color: '#06B6D4',
-        bgColor: 'rgba(6, 182, 212, 0.12)',
-        value: 42,
-    },
-    {
-        id: 'historico',
-        name: 'Historial de Alertas',
-        desc: 'Alertas previas en la zona',
-        icon: '📋',
-        color: '#64748B',
-        bgColor: 'rgba(100, 116, 139, 0.12)',
-        value: 30,
-    },
+// ── Patrones (siempre los mismos, independiente del CSV) ──────
+const PATTERN_META = [
+    { id:'P1', name:'Ciclos de Consumo',  desc:'Anomalías en ciclos de consumo diario',        icon:'🔄', color:'#3B82F6', bg:'rgba(59,130,246,.12)'  },
+    { id:'P2', name:'Ósmosis Inversa',    desc:'Detección de uso de ósmosis inversa',           icon:'💧', color:'#06B6D4', bg:'rgba(6,182,212,.12)'   },
+    { id:'P3', name:'Consumo Perpetuo',   desc:'Consumo continuo sin pausas nocturnas',         icon:'♾️',  color:'#8B5CF6', bg:'rgba(139,92,246,.12)'  },
+    { id:'P4', name:'Enganche Ilegal',    desc:'Indicios de conexión fraudulenta a la red',    icon:'⚡', color:'#F59E0B', bg:'rgba(245,158,11,.12)'  },
+    { id:'P5', name:'Fuga Hídrica',       desc:'Presencia de fugas en la instalación',          icon:'🌊', color:'#EF4444', bg:'rgba(239,68,68,.12)'   },
+    { id:'P6', name:'Patrón Eléctrico',   desc:'Score anómalo de consumo eléctrico',            icon:'🔌', color:'#64748B', bg:'rgba(100,116,139,.12)' },
+    { id:'RT', name:'Resultado Final',    desc:'Riesgo total combinado (score ponderado)',      icon:'🎯', color:'#1D4ED8', bg:'rgba(29,78,216,.12)'   },
 ];
 
-const PROGRESS_LABELS = [
-    'Mar 7', 'Mar 10', 'Mar 13', 'Mar 16', 'Mar 19',
-    'Mar 22', 'Mar 25', 'Mar 28', 'Mar 31', 'Abr 3', 'Abr 6',
-];
-
-const PROGRESS_DATA = {
-    consumo:     [40, 45, 52, 60, 63, 70, 72, 75, 78, 80, 82],
-    agua:        [30, 35, 40, 50, 55, 58, 62, 65, 70, 72, 74],
-    termico:     [20, 28, 35, 42, 48, 50, 55, 58, 62, 65, 68],
-    ventilacion: [10, 15, 20, 28, 32, 38, 42, 45, 48, 52, 55],
-    actividad:   [5,  8,  12, 18, 22, 26, 30, 34, 37, 40, 42],
-    historico:   [15, 16, 18, 20, 22, 24, 25, 26, 28, 29, 30],
-    resultado:   [25, 30, 38, 46, 50, 55, 58, 62, 65, 68, 72],
+// ── Coordenadas de distritos de Alicante ─────────────────────
+const DISTRICT_COORDS = {
+    Distrito_01:{ lat:38.3360, lng:-0.4910, label:'Distrito 1 — Casco Antiguo'  },
+    Distrito_02:{ lat:38.3440, lng:-0.4840, label:'Distrito 2 — Ensanche'       },
+    Distrito_03:{ lat:38.3530, lng:-0.4750, label:'Distrito 3 — Carolinas'      },
+    Distrito_04:{ lat:38.3610, lng:-0.4680, label:'Distrito 4 — Benalúa Norte'  },
+    Distrito_05:{ lat:38.3500, lng:-0.4630, label:'Distrito 5 — Pla del Bon R.' },
+    Distrito_06:{ lat:38.3400, lng:-0.4760, label:'Distrito 6 — Centro'         },
+    Distrito_07:{ lat:38.3480, lng:-0.4930, label:'Distrito 7 — San Blas'       },
+    Distrito_08:{ lat:38.3570, lng:-0.4830, label:'Distrito 8 — Altozano'       },
 };
 
-// Alicante area heat data [lat, lng, intensity]
-const HEATMAP_DATA = [
-    [38.3452, -0.4810, 0.92], [38.3460, -0.4790, 0.88], [38.3448, -0.4835, 0.45],
-    [38.3500, -0.4850, 0.70], [38.3510, -0.4800, 0.65], [38.3480, -0.4780, 0.82],
-    [38.3420, -0.4860, 0.35], [38.3440, -0.4750, 0.55], [38.3490, -0.4720, 0.40],
-    [38.3530, -0.4770, 0.75], [38.3545, -0.4830, 0.60], [38.3470, -0.4700, 0.30],
-    [38.3410, -0.4900, 0.25], [38.3520, -0.4900, 0.50], [38.3555, -0.4750, 0.85],
-    [38.3430, -0.4820, 0.78], [38.3465, -0.4870, 0.62], [38.3505, -0.4740, 0.48],
-    [38.3485, -0.4690, 0.33], [38.3560, -0.4810, 0.90], [38.3400, -0.4780, 0.55],
-    [38.3475, -0.4760, 0.72], [38.3515, -0.4860, 0.58], [38.3435, -0.4710, 0.40],
-    [38.3550, -0.4700, 0.68], [38.3495, -0.4880, 0.80], [38.3445, -0.4740, 0.52],
-    [38.3525, -0.4720, 0.37], [38.3415, -0.4840, 0.48], [38.3540, -0.4760, 0.73],
-];
+const MESES_ALL = ['2024-01','2024-02','2024-03','2024-04','2024-05','2024-06',
+                   '2024-07','2024-08','2024-09','2024-10','2024-11','2024-12'];
+const MESES_LABEL = { '2024-01':'Ene','2024-02':'Feb','2024-03':'Mar','2024-04':'Abr',
+                      '2024-05':'May','2024-06':'Jun','2024-07':'Jul','2024-08':'Ago',
+                      '2024-09':'Sep','2024-10':'Oct','2024-11':'Nov','2024-12':'Dic' };
 
-// ========================
-// Utility
-// ========================
+// ── Estado ────────────────────────────────────────────────────
+let DATA = null;
+let activeDatasets = new Set(PATTERN_META.map(p => p.id));
+let gaugeChart    = null;
+let progressChart = null;
+let mapInstance   = null;
+let heatLayer     = null;
+let markerLayer   = null;
 
-function getColorForValue(value) {
-    if (value >= 75) return '#EF4444';
-    if (value >= 50) return '#F59E0B';
-    return '#22C55E';
+// ── Arranque ──────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+    if (typeof AQUADETECT_DATA === 'undefined') {
+        document.getElementById('loading-text').textContent =
+            'Error: data.js no encontrado. Ejecuta launch.bat para generar los datos desde el CSV.';
+        return;
+    }
+    DATA = AQUADETECT_DATA;
+    bootApp();
+});
+
+function bootApp() {
+    // Mostrar UI antes de inicializar charts (canvas necesita dimensiones reales)
+    document.getElementById('loading-overlay').classList.add('hidden');
+    document.getElementById('main-content').classList.remove('hidden');
+
+    const si = document.getElementById('status-indicator');
+    si.classList.add('ready');
+    document.getElementById('status-text').textContent = 'Sistema activo';
+
+    // Info en footer
+    const totalContratos = DATA.contratos?.length ?? 0;
+    const totalRegistros = totalContratos * 12; // aprox 12 meses por contrato
+    document.getElementById('footer-records').textContent =
+        `${totalContratos} contratos · ${DATA.riesgoPorContrato?.length ?? 0} análisis cargados`;
+
+    // Poblar filtro de distritos
+    populateRegionFilter();
+    // Listeners de filtros
+    document.getElementById('btn-apply-filters').addEventListener('click', applyFilters);
+    // Render inicial
+    applyFilters();
+    // Mapa de calor: siempre global, se renderiza una sola vez
+    renderHeatmapGlobal();
 }
 
-function getRiskLevel(value) {
-    if (value >= 75) return { text: 'Riesgo Alto', class: 'risk-high' };
-    if (value >= 50) return { text: 'Riesgo Medio', class: 'risk-medium' };
-    return { text: 'Riesgo Bajo', class: 'risk-low' };
+// ── Poblar filtro de distritos ────────────────────────────────
+function populateRegionFilter() {
+    const sel = document.getElementById('filter-region');
+    const regiones = [...new Set(DATA.contratos.map(c => c.region))].sort();
+    regiones.forEach(r => {
+        const o = document.createElement('option');
+        o.value = r;
+        o.textContent = DISTRICT_COORDS[r]?.label || r;
+        sel.appendChild(o);
+    });
 }
 
-// ========================
-// Patterns Panel
-// ========================
+// ── Helper: obtener rango de meses ────────────────────────────
+function getPeriodo(val) {
+    if (val === 'TODOS') return ['2024-01', '2024-12'];
+    return val.split(',');
+}
 
-function renderPatterns() {
+// ═══════════════════════════════════════════════════════════════
+//  APLICAR FILTROS
+// ═══════════════════════════════════════════════════════════════
+
+function applyFilters() {
+    const region  = document.getElementById('filter-region').value;
+    const umbral  = parseFloat(document.getElementById('filter-umbral').value) || 0;
+    const periodo = document.getElementById('filter-periodo').value;
+
+    const [mesI, mesF] = getPeriodo(periodo);
+    const mesesRango   = MESES_ALL.filter(m => m >= mesI && m <= mesF);
+
+    // 1. Contratos que pasan el filtro de distrito
+    let contratos = DATA.contratos.filter(c =>
+        region === 'TODOS' || c.region === region
+    );
+
+    // 2. Calcular riesgo promedio en el período para cada contrato → filtrar por umbral
+    contratos = contratos.map(c => {
+        const ev = DATA.evolucionMensual[c.id] || [];
+        const enRango = ev.filter(d => d.mes >= mesI && d.mes <= mesF);
+        const avgRT = enRango.length
+            ? parseFloat((enRango.reduce((a, d) => a + (d.RT || 0), 0) / enRango.length).toFixed(2))
+            : 0;
+        const maxRT = enRango.length
+            ? parseFloat(Math.max(...enRango.map(d => d.RT || 0)).toFixed(2))
+            : 0;
+        return { ...c, avgRT, maxRT };
+    }).filter(c => c.avgRT >= umbral);
+
+    if (contratos.length === 0) {
+        showToast('⚠️ No hay contratos que cumplan el umbral seleccionado. Reduce el umbral.', 'warn');
+        return;
+    }
+
+    const ids = new Set(contratos.map(c => c.id));
+
+    // 3. Agregar datos mensuales (promedio del grupo de contratos filtrado)
+    const mesData = Object.fromEntries(PATTERN_META.map(p => [p.id, []]));
+    mesesRango.forEach(mes => {
+        const sums = Object.fromEntries(PATTERN_META.map(p => [p.id, 0]));
+        let count = 0;
+        ids.forEach(id => {
+            const d = (DATA.evolucionMensual[id] || []).find(x => x.mes === mes);
+            if (!d) return;
+            PATTERN_META.forEach(p => { sums[p.id] += (d[p.id] ?? 0); });
+            count++;
+        });
+        PATTERN_META.forEach(p => {
+            mesData[p.id].push(count > 0 ? parseFloat((sums[p.id] / count).toFixed(2)) : 0);
+        });
+    });
+
+    // 4. Valores del último mes del rango (para patrones y gauge)
+    const lastIdx    = mesesRango.length - 1;
+    const finalRT    = lastIdx >= 0 ? mesData.RT[lastIdx] : 0;
+    const finalPats  = Object.fromEntries(
+        PATTERN_META.filter(p => p.id !== 'RT')
+                    .map(p => [p.id, lastIdx >= 0 ? mesData[p.id][lastIdx] : 0])
+    );
+
+    // 5. Stats globales del grupo
+    const allRisks  = contratos.map(c => c.avgRT);
+    const avgGlobal = parseFloat((allRisks.reduce((a, b) => a + b, 0) / allRisks.length).toFixed(2));
+    const maxGlobal = parseFloat(Math.max(...allRisks).toFixed(2));
+    const criticos  = contratos.filter(c => c.avgRT >= 30).length;
+
+    // ── Render ──
+    const labels = mesesRango.map(m => MESES_LABEL[m] || m);
+    updateFilterStats(contratos.length, avgGlobal, maxGlobal, criticos, region, mesI, mesF);
+    updatePatternsPanel(finalPats, contratos.length, region, mesI, mesF);
+    updateGauge(finalRT, avgGlobal, maxGlobal);
+    updateProgressChart(labels, mesData);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  STATS BAR
+// ═══════════════════════════════════════════════════════════════
+
+function updateFilterStats(n, avg, max, criticos, region, mesI, mesF) {
+    document.getElementById('stat-contratos').textContent =
+        `${n} contrato${n !== 1 ? 's' : ''}`;
+    document.getElementById('stat-region').textContent =
+        region === 'TODOS' ? 'Todos los distritos' : (DISTRICT_COORDS[region]?.label || region);
+    document.getElementById('stat-periodo').textContent =
+        `${MESES_LABEL[mesI] || mesI} – ${MESES_LABEL[mesF] || mesF}`;
+    document.getElementById('stat-riesgo-max').textContent = `Pico: ${max}%`;
+    document.getElementById('stat-riesgo-avg').textContent = `Media: ${avg}%`;
+    document.getElementById('stat-alertas').textContent = `Alertas críticas (≥30%): ${criticos}`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  PANEL DE PATRONES
+// ═══════════════════════════════════════════════════════════════
+
+function updatePatternsPanel(patValues, nContratos, region, mesI, mesF) {
     const list = document.getElementById('patterns-list');
     list.innerHTML = '';
 
-    PATTERNS.forEach((p, i) => {
+    const distLabel = region === 'TODOS' ? 'Todos los distritos' : (DISTRICT_COORDS[region]?.label || region);
+    document.getElementById('patterns-subtitle').textContent =
+        `Promedio de ${nContratos} contrato${nContratos !== 1 ? 's' : ''} · ${distLabel} · ${MESES_LABEL[mesI]}–${MESES_LABEL[mesF]}`;
+
+    PATTERN_META.filter(p => p.id !== 'RT').forEach((p, i) => {
+        const val   = patValues[p.id] ?? 0;
+        const pct   = Math.min(100, Math.max(0, val));
+        const color = val >= 66 ? '#EF4444' : val >= 33 ? '#F59E0B' : '#22C55E';
+
         const card = document.createElement('div');
         card.className = 'pattern-card';
-        card.style.animationDelay = `${i * 0.07}s`;
-
-        const valueColor = getColorForValue(p.value);
-
+        card.style.animationDelay = `${i * 0.06}s`;
         card.innerHTML = `
-            <div class="pattern-icon" style="background:${p.bgColor};color:${p.color}">
-                ${p.icon}
-            </div>
+            <div class="pattern-icon" style="background:${p.bg};color:${p.color}">${p.icon}</div>
             <div class="pattern-info">
                 <div class="pattern-name">${p.name}</div>
                 <div class="pattern-desc">${p.desc}</div>
             </div>
             <div class="pattern-value">
-                <span class="pattern-percent" style="color:${valueColor}">${p.value}%</span>
+                <span class="pattern-percent" style="color:${color}">${val.toFixed(1)}</span>
                 <div class="pattern-bar-track">
-                    <div class="pattern-bar-fill" style="background:${valueColor}" data-width="${p.value}"></div>
+                    <div class="pattern-bar-fill" style="background:${color}" data-width="${pct}"></div>
                 </div>
-            </div>
-        `;
-
+            </div>`;
         list.appendChild(card);
     });
 
-    // Animate bars after next paint
-    requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-            document.querySelectorAll('.pattern-bar-fill').forEach(bar => {
-                bar.style.width = bar.dataset.width + '%';
-            });
-        });
-    });
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+        document.querySelectorAll('.pattern-bar-fill').forEach(b => { b.style.width = b.dataset.width + '%'; });
+    }));
 }
 
-// ========================
-// Gauge Chart (Doughnut)
-// ========================
+// ═══════════════════════════════════════════════════════════════
+//  GAUGE
+// ═══════════════════════════════════════════════════════════════
 
-let gaugeChart = null;
+function updateGauge(value, avgGlobal, maxGlobal) {
+    const pct = Math.min(100, Math.max(0, value));
 
-function createGaugeChart() {
-    const ctx = document.getElementById('gauge-chart').getContext('2d');
-    const finalValue = 72;
-    const remaining = 100 - finalValue;
+    if (gaugeChart) { gaugeChart.destroy(); gaugeChart = null; }
 
-    const gradientFill = ctx.createLinearGradient(0, 0, 280, 280);
-    gradientFill.addColorStop(0, '#2563EB');
-    gradientFill.addColorStop(1, '#60A5FA');
+    const fillColor = pct >= 30 ? '#EF4444' : pct >= 15 ? '#F59E0B' : '#2563EB';
 
-    gaugeChart = new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            labels: ['Probabilidad', 'Restante'],
-            datasets: [{
-                data: [0, 100],
-                backgroundColor: [gradientFill, '#F1F5F9'],
-                borderWidth: 0,
-                borderRadius: 8,
-                spacing: 2,
-            }],
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            cutout: '78%',
-            rotation: -90,
-            circumference: 360,
-            plugins: {
-                legend: { display: false },
-                tooltip: { enabled: false },
+    gaugeChart = new Chart(
+        document.getElementById('gauge-chart').getContext('2d'),
+        {
+            type: 'doughnut',
+            data: { datasets: [{ data:[0, 100], backgroundColor:[fillColor,'#F1F5F9'], borderWidth:0, borderRadius:6, spacing:2 }] },
+            options: {
+                responsive:true, maintainAspectRatio:true, cutout:'78%',
+                rotation:-90, circumference:360,
+                plugins:{ legend:{display:false}, tooltip:{enabled:false} },
+                animation:{ animateRotate:true, duration:1600, easing:'easeOutQuart' },
             },
-            animation: {
-                animateRotate: true,
-                duration: 1800,
-                easing: 'easeOutQuart',
-            },
-        },
-    });
-
-    // Animate value
-    animateGaugeValue(finalValue);
-}
-
-function animateGaugeValue(target) {
-    const valueEl = document.getElementById('gauge-value');
-    const badgeEl = document.getElementById('risk-badge');
-    const risk = getRiskLevel(target);
-
-    badgeEl.className = `risk-badge ${risk.class}`;
-    badgeEl.querySelector('.risk-text').textContent = risk.text;
-
-    // Animate the number
-    let current = 0;
-    const step = target / 60;
-    const interval = setInterval(() => {
-        current += step;
-        if (current >= target) {
-            current = target;
-            clearInterval(interval);
         }
-        valueEl.textContent = Math.round(current) + '%';
+    );
 
-        // Update chart data
-        gaugeChart.data.datasets[0].data = [Math.round(current), 100 - Math.round(current)];
+    const valEl = document.getElementById('gauge-value');
+    const badge = document.getElementById('risk-badge');
+    const note  = document.getElementById('gauge-note');
+
+    let cur = 0;
+    const step = pct / 60;
+    const iv = setInterval(() => {
+        cur += step;
+        if (cur >= pct) { cur = pct; clearInterval(iv); }
+        valEl.textContent = cur.toFixed(1) + '%';
+        gaugeChart.data.datasets[0].data = [cur, 100 - cur];
         gaugeChart.update('none');
-    }, 25);
+    }, 20);
 
-    // Color shift
-    if (target >= 75) {
-        valueEl.style.color = '#DC2626';
-    } else if (target >= 50) {
-        valueEl.style.color = '#D97706';
-    } else {
-        valueEl.style.color = '#1D4ED8';
-    }
+    const risk = pct >= 30
+        ? { text:'🚨 Riesgo Alto — Posible Plantación Ilegal', cls:'risk-high',   col:'#DC2626' }
+        : pct >= 15
+        ? { text:'⚠️ Riesgo Medio — Requiere Investigación',  cls:'risk-medium', col:'#D97706' }
+        : { text:'✅ Riesgo Bajo — Sin Evidencias Claras',    cls:'risk-low',    col:'#16A34A' };
+
+    badge.className = `risk-badge ${risk.cls}`;
+    badge.querySelector('.risk-text').textContent = risk.text;
+    valEl.style.color = risk.col;
+    note.textContent = `Promedio del grupo: ${avgGlobal}% · Pico: ${maxGlobal}% · Rango del dataset: 0–42.72%`;
 }
 
-// ========================
-// Progress Chart (Line)
-// ========================
+// ═══════════════════════════════════════════════════════════════
+//  GRÁFICA DE EVOLUCIÓN
+// ═══════════════════════════════════════════════════════════════
 
-let progressChart = null;
-const activeDatasets = new Set(['consumo', 'agua', 'termico', 'ventilacion', 'actividad', 'historico', 'resultado']);
-
-const DATASET_COLORS = {
-    consumo: '#F59E0B',
-    agua: '#3B82F6',
-    termico: '#EF4444',
-    ventilacion: '#8B5CF6',
-    actividad: '#06B6D4',
-    historico: '#64748B',
-    resultado: '#1D4ED8',
-};
-
-const DATASET_LABELS = {
-    consumo: 'Consumo Eléctrico',
-    agua: 'Consumo Agua',
-    termico: 'Anomalía Térmica',
-    ventilacion: 'Ventilación',
-    actividad: 'Actividad',
-    historico: 'Historial',
-    resultado: 'Resultado Final',
-};
-
-function createToggleButtons() {
+function initToggleButtons() {
     const container = document.getElementById('chart-toggles');
-    container.innerHTML = '';
+    if (container.hasChildNodes()) return;
 
-    // "Todos" button
     const allBtn = document.createElement('button');
-    allBtn.className = 'toggle-btn active';
-    allBtn.id = 'toggle-all';
+    allBtn.className = 'toggle-btn active'; allBtn.id = 'toggle-all';
     allBtn.textContent = 'Todos';
     allBtn.addEventListener('click', () => {
-        const allActive = activeDatasets.size === Object.keys(PROGRESS_DATA).length;
-        if (allActive) {
-            activeDatasets.clear();
-        } else {
-            Object.keys(PROGRESS_DATA).forEach(k => activeDatasets.add(k));
-        }
-        updateToggleStates();
-        updateProgressChart();
+        const all = activeDatasets.size === PATTERN_META.length;
+        if (all) activeDatasets.clear(); else PATTERN_META.forEach(p => activeDatasets.add(p.id));
+        syncToggles(); syncChartVisibility();
     });
     container.appendChild(allBtn);
 
-    // Individual buttons
-    Object.keys(PROGRESS_DATA).forEach(key => {
+    PATTERN_META.forEach(p => {
         const btn = document.createElement('button');
-        btn.className = `toggle-btn ${activeDatasets.has(key) ? 'active' : ''}`;
-        btn.dataset.key = key;
-        btn.innerHTML = `<span class="toggle-dot" style="background:${DATASET_COLORS[key]}"></span>${DATASET_LABELS[key]}`;
+        btn.className = `toggle-btn ${activeDatasets.has(p.id) ? 'active' : ''}`;
+        btn.dataset.key = p.id;
+        btn.innerHTML = `<span class="toggle-dot" style="background:${p.color}"></span>${p.name}`;
         btn.addEventListener('click', () => {
-            if (activeDatasets.has(key)) {
-                activeDatasets.delete(key);
-            } else {
-                activeDatasets.add(key);
-            }
-            updateToggleStates();
-            updateProgressChart();
+            activeDatasets.has(p.id) ? activeDatasets.delete(p.id) : activeDatasets.add(p.id);
+            syncToggles(); syncChartVisibility();
         });
         container.appendChild(btn);
     });
 }
 
-function updateToggleStates() {
+function syncToggles() {
     const allBtn = document.getElementById('toggle-all');
-    const allActive = activeDatasets.size === Object.keys(PROGRESS_DATA).length;
-    allBtn.classList.toggle('active', allActive);
-
+    if (allBtn) allBtn.classList.toggle('active', activeDatasets.size === PATTERN_META.length);
     document.querySelectorAll('.toggle-btn[data-key]').forEach(btn => {
         btn.classList.toggle('active', activeDatasets.has(btn.dataset.key));
     });
 }
 
-function buildDatasets() {
-    return Object.keys(PROGRESS_DATA).map(key => {
-        const color = DATASET_COLORS[key];
-        const isResult = key === 'resultado';
-        return {
-            label: DATASET_LABELS[key],
-            data: PROGRESS_DATA[key],
-            borderColor: color,
-            backgroundColor: isResult ? `${color}18` : 'transparent',
-            borderWidth: isResult ? 3 : 2,
-            pointRadius: isResult ? 4 : 2,
-            pointHoverRadius: 6,
-            pointBackgroundColor: color,
-            tension: 0.35,
-            fill: isResult,
-            hidden: !activeDatasets.has(key),
-            borderDash: isResult ? [] : [0],
-        };
-    });
-}
-
-function createProgressChart() {
-    const ctx = document.getElementById('progress-chart').getContext('2d');
-
-    progressChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: PROGRESS_LABELS,
-            datasets: buildDatasets(),
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            interaction: {
-                mode: 'index',
-                intersect: false,
-            },
-            plugins: {
-                legend: { display: false },
-                tooltip: {
-                    backgroundColor: 'rgba(15, 23, 42, 0.9)',
-                    titleFont: { family: 'Inter', size: 12, weight: '600' },
-                    bodyFont: { family: 'Inter', size: 11 },
-                    padding: 12,
-                    cornerRadius: 8,
-                    boxPadding: 4,
-                    callbacks: {
-                        label: (ctx) => ` ${ctx.dataset.label}: ${ctx.parsed.y}%`,
-                    },
-                },
-            },
-            scales: {
-                x: {
-                    grid: {
-                        color: 'rgba(226, 232, 240, 0.6)',
-                        drawBorder: false,
-                    },
-                    ticks: {
-                        font: { family: 'Inter', size: 11 },
-                        color: '#94A3B8',
-                    },
-                },
-                y: {
-                    min: 0,
-                    max: 100,
-                    grid: {
-                        color: 'rgba(226, 232, 240, 0.6)',
-                        drawBorder: false,
-                    },
-                    ticks: {
-                        font: { family: 'Inter', size: 11 },
-                        color: '#94A3B8',
-                        callback: (v) => v + '%',
-                        stepSize: 20,
-                    },
-                },
-            },
-            animation: {
-                duration: 1200,
-                easing: 'easeOutCubic',
-            },
-        },
-    });
-}
-
-function updateProgressChart() {
+function syncChartVisibility() {
     if (!progressChart) return;
-    progressChart.data.datasets = buildDatasets();
+    progressChart.data.datasets.forEach(ds => { ds.hidden = !activeDatasets.has(ds._id); });
     progressChart.update();
 }
 
-// ========================
-// Heatmap (Leaflet)
-// ========================
+function updateProgressChart(labels, mesData) {
+    initToggleButtons();
+    if (progressChart) { progressChart.destroy(); progressChart = null; }
 
-function createHeatmap() {
-    const map = L.map('heatmap', {
-        scrollWheelZoom: false,
-    }).setView([38.3475, -0.4810], 15);
-
-    // Clean-looking tiles
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
-        subdomains: 'abcd',
-        maxZoom: 19,
-    }).addTo(map);
-
-    // Heat layer
-    const heatData = HEATMAP_DATA.map(([lat, lng, intensity]) => [lat, lng, intensity]);
-
-    L.heatLayer(heatData, {
-        radius: 35,
-        blur: 25,
-        maxZoom: 17,
-        max: 1.0,
-        gradient: {
-            0.0: '#3B82F6',
-            0.25: '#60A5FA',
-            0.5: '#22C55E',
-            0.65: '#F59E0B',
-            0.8: '#EF4444',
-            1.0: '#DC2626',
-        },
-    }).addTo(map);
-
-    // Add some marker dots for highest risk areas
-    const highRiskAreas = HEATMAP_DATA.filter(d => d[2] >= 0.8);
-    highRiskAreas.forEach(([lat, lng, intensity]) => {
-        const pct = Math.round(intensity * 100);
-        L.circleMarker([lat, lng], {
-            radius: 6,
-            fillColor: '#DC2626',
-            color: '#fff',
-            weight: 2,
-            fillOpacity: 0.9,
-        }).addTo(map).bindPopup(
-            `<div style="font-family:Inter,sans-serif;text-align:center;">
-                <strong style="font-size:1.1em;color:#DC2626;">${pct}%</strong><br>
-                <span style="font-size:0.85em;color:#64748B;">Probabilidad detectada</span>
-            </div>`
-        );
+    const datasets = PATTERN_META.map(p => {
+        const isRT = p.id === 'RT';
+        return {
+            _id: p.id, label: p.name,
+            data: mesData[p.id] || [],
+            borderColor: p.color,
+            backgroundColor: isRT ? `${p.color}18` : 'transparent',
+            borderWidth: isRT ? 3 : 1.8,
+            pointRadius: isRT ? 4 : 2.5,
+            pointHoverRadius: 6, pointBackgroundColor: p.color,
+            tension: 0.35, fill: isRT,
+            hidden: !activeDatasets.has(p.id),
+        };
     });
+
+    progressChart = new Chart(
+        document.getElementById('progress-chart').getContext('2d'),
+        {
+            type: 'line',
+            data: { labels, datasets },
+            options: {
+                responsive:true, maintainAspectRatio:false,
+                interaction:{ mode:'index', intersect:false },
+                plugins:{
+                    legend:{ display:false },
+                    tooltip:{
+                        backgroundColor:'rgba(15,23,42,.92)',
+                        titleFont:{ family:'Inter', size:12, weight:'600' },
+                        bodyFont:{ family:'Inter', size:11 },
+                        padding:12, cornerRadius:8, boxPadding:4,
+                        callbacks:{ label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}` },
+                    },
+                },
+                scales:{
+                    x:{ grid:{ color:'rgba(226,232,240,.6)', drawBorder:false }, ticks:{ font:{family:'Inter',size:11}, color:'#94A3B8' } },
+                    y:{ min:0, grid:{ color:'rgba(226,232,240,.6)', drawBorder:false }, ticks:{ font:{family:'Inter',size:11}, color:'#94A3B8', callback:v=>v.toFixed(0) } },
+                },
+                animation:{ duration:800, easing:'easeOutCubic' },
+            },
+        }
+    );
+
+    document.getElementById('progress-subtitle').textContent =
+        `Evolución mensual — ${labels.length} período${labels.length !== 1 ? 's' : ''}`;
 }
 
-// ========================
-// Filter Interaction (Simulated)
-// ========================
+// ═══════════════════════════════════════════════════════════════
+//  MAPA DE CALOR — SIEMPRE GLOBAL (todos los distritos)
+//  Se renderiza una sola vez al cargar; los filtros NO lo afectan.
+// ═══════════════════════════════════════════════════════════════
 
-function setupFilters() {
-    const btn = document.getElementById('btn-apply-filters');
-    btn.addEventListener('click', () => {
-        btn.textContent = 'Analizando...';
-        btn.disabled = true;
-        btn.style.opacity = '0.7';
-
-        // Simulate refresh with randomized data
-        setTimeout(() => {
-            PATTERNS.forEach(p => {
-                p.value = Math.min(98, Math.max(15, p.value + Math.round((Math.random() - 0.4) * 20)));
-            });
-
-            renderPatterns();
-
-            // Update gauge
-            const avg = Math.round(PATTERNS.reduce((s, p) => s + p.value, 0) / PATTERNS.length);
-            animateGaugeValue(avg);
-
-            // Update subtitle
-            const barrio = document.getElementById('filter-barrio');
-            const zona = document.getElementById('filter-zona');
-            const sector = document.getElementById('filter-sector');
-            const subtitle = `${barrio.options[barrio.selectedIndex].text} — ${zona.options[zona.selectedIndex].text} — ${sector.options[sector.selectedIndex].text}`;
-            document.querySelector('#patterns-panel .panel-subtitle').textContent = subtitle;
-
-            btn.innerHTML = `
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.5"/><path d="M11.5 11.5L15 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-                Analizar
-            `;
-            btn.disabled = false;
-            btn.style.opacity = '1';
-        }, 800);
-    });
+function contractOffset(id, scale = 0.006) {
+    const n = parseInt(id.replace(/\D/g, '')) || 0;
+    const angle = (n * 137.5) * (Math.PI / 180);
+    const r = scale * ((n % 5) / 5 + 0.3);
+    return { dlat: Math.sin(angle) * r, dlng: Math.cos(angle) * r };
 }
 
-// ========================
-// Init
-// ========================
+function formatPerfil(p) {
+    const m = {
+        Plantacion_Ilegal:'🚨 Plantación Ilegal', Familia_Estandar:'🏠 Familia Estándar',
+        Trabajador_Presencial:'💼 Trabajador Presencial', Jubilados:'👴 Jubilados',
+        Teletrabajo:'💻 Teletrabajo', Segunda_Residencia:'🏖️ Segunda Residencia', Turno_Noche:'🌙 Turno Noche',
+    };
+    return m[p] || p.replace(/_/g, ' ');
+}
 
-document.addEventListener('DOMContentLoaded', () => {
-    renderPatterns();
-    createGaugeChart();
-    createToggleButtons();
-    createProgressChart();
-    createHeatmap();
-    setupFilters();
-});
+function renderHeatmapGlobal() {
+    // Usar riesgoPorContrato (promedio anual completo de cada contrato, sin filtros)
+    const allContratos = DATA.riesgoPorContrato || [];
+    if (!allContratos.length) return;
+
+    const heatData = allContratos.map(c => {
+        const dist = DISTRICT_COORDS[c.region];
+        if (!dist) return null;
+        const off = contractOffset(c.id);
+        return { ...c, lat: dist.lat + off.dlat, lng: dist.lng + off.dlng };
+    }).filter(Boolean);
+
+    if (!mapInstance) {
+        mapInstance = L.map('heatmap', { scrollWheelZoom: false }).setView([38.347, -0.480], 13);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap &copy; CARTO',
+            subdomains: 'abcd', maxZoom: 19,
+        }).addTo(mapInstance);
+    }
+
+    if (heatLayer)   { mapInstance.removeLayer(heatLayer);   heatLayer   = null; }
+    if (markerLayer) { mapInstance.removeLayer(markerLayer); markerLayer = null; }
+
+    const maxRisk = Math.max(...heatData.map(d => d.avg), 1);
+
+    heatLayer = L.heatLayer(
+        heatData.map(d => [d.lat, d.lng, d.avg / maxRisk]),
+        { radius:32, blur:24, maxZoom:17, max:1.0,
+          gradient:{ 0:'#3B82F6', .3:'#60A5FA', .5:'#22C55E', .65:'#F59E0B', .8:'#EF4444', 1:'#DC2626' } }
+    ).addTo(mapInstance);
+
+    // Marcadores para contratos con riesgo en la mitad superior
+    const threshold = maxRisk * 0.5;
+    markerLayer = L.layerGroup();
+    heatData.filter(d => d.avg >= threshold).sort((a, b) => b.avg - a.avg).forEach(d => {
+        const col = d.avg >= 30 ? '#DC2626' : d.avg >= 15 ? '#D97706' : '#16A34A';
+        L.circleMarker([d.lat, d.lng], {
+            radius: 5 + (d.avg / maxRisk) * 4,
+            fillColor: col, color: '#fff', weight: 1.5, fillOpacity: 0.9,
+        }).addTo(markerLayer).bindPopup(`
+            <div style="font-family:Inter,sans-serif;min-width:170px;padding:2px">
+                <div style="font-weight:700;font-size:.9em;margin-bottom:3px">${d.id}</div>
+                <div style="font-size:.75em;color:#64748B;margin-bottom:2px">${DISTRICT_COORDS[d.region]?.label || d.region}</div>
+                <div style="font-size:.75em;color:#64748B;margin-bottom:8px">${formatPerfil(d.perfil)}</div>
+                <div style="display:flex;align-items:center;gap:6px">
+                    <span style="width:9px;height:9px;border-radius:50%;background:${col};display:inline-block;flex-shrink:0"></span>
+                    <strong style="font-size:1.1em;color:${col}">${d.avg.toFixed(1)}%</strong>
+                    <span style="font-size:.72em;color:#94A3B8">riesgo promedio anual</span>
+                </div>
+                <div style="font-size:.72em;color:#94A3B8;margin-top:2px">Pico histórico: ${d.max.toFixed(1)}%</div>
+            </div>`);
+    });
+    markerLayer.addTo(mapInstance);
+}
+
+// ── Toast ─────────────────────────────────────────────────────
+function showToast(msg, type = 'info') {
+    let t = document.getElementById('aq-toast');
+    if (!t) {
+        t = document.createElement('div');
+        t.id = 'aq-toast';
+        Object.assign(t.style, {
+            position:'fixed', bottom:'28px', left:'50%', transform:'translateX(-50%)',
+            padding:'10px 20px', borderRadius:'999px', fontSize:'.82rem', fontWeight:'600',
+            fontFamily:'Inter,sans-serif', zIndex:'9999', transition:'opacity .4s ease',
+            boxShadow:'0 8px 30px rgba(0,0,0,.15)', whiteSpace:'nowrap',
+        });
+        document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    t.style.background = type === 'warn' ? '#FEF3C7' : type === 'error' ? '#FEE2E2' : '#DBEAFE';
+    t.style.color       = type === 'warn' ? '#92400E' : type === 'error' ? '#991B1B'  : '#1E40AF';
+    t.style.opacity = '1';
+    clearTimeout(t._t);
+    t._t = setTimeout(() => { t.style.opacity = '0'; }, 4500);
+}
