@@ -1,19 +1,23 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Sistema de detección de plantaciones ilegales mediante análisis de patrones en zonas geográficas de Alicante.">
+    <meta name="description"
+        content="Sistema de detección de plantaciones ilegales mediante análisis de patrones en zonas geográficas de Alicante.">
     <title>AquaDetect — Detección de Plantaciones Ilegales</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
     <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
 
     <!-- Header -->
@@ -21,16 +25,13 @@
         <div class="header-inner">
             <div class="logo">
                 <svg class="logo-icon" viewBox="0 0 32 32" fill="none">
-                    <circle cx="16" cy="16" r="14" stroke="currentColor" stroke-width="2"/>
-                    <path d="M16 6C16 6 8 14 8 20a8 8 0 0016 0c0-6-8-14-8-14z" fill="currentColor" opacity="0.25"/>
-                    <path d="M16 10c0 0-5 5.5-5 9.5a5 5 0 0010 0c0-4-5-9.5-5-9.5z" fill="currentColor" opacity="0.5"/>
+                    <circle cx="16" cy="16" r="14" stroke="currentColor" stroke-width="2" />
+                    <path d="M16 6C16 6 8 14 8 20a8 8 0 0016 0c0-6-8-14-8-14z" fill="currentColor" opacity="0.25" />
+                    <path d="M16 10c0 0-5 5.5-5 9.5a5 5 0 0010 0c0-4-5-9.5-5-9.5z" fill="currentColor" opacity="0.5" />
                 </svg>
                 <span class="logo-text">Aqua<strong>Detect</strong></span>
             </div>
-            <nav class="header-nav">
-                <span class="nav-badge">Análisis de Riesgo</span>
-                <span class="nav-item">Dataset 2024</span>
-            </nav>
+
             <div class="header-right">
                 <span class="status-indicator" id="status-indicator">
                     <span class="status-dot"></span>
@@ -51,7 +52,10 @@
         <!-- ===== FILTROS ===== -->
         <section id="filters-section" class="section">
             <div class="section-label">
-                <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M1 2h14l-5.5 6.5V14l-3-1.5V8.5L1 2z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+                    <path d="M1 2h14l-5.5 6.5V14l-3-1.5V8.5L1 2z" stroke="currentColor" stroke-width="1.5"
+                        stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
                 Filtros de detección
             </div>
             <div class="filters-grid">
@@ -93,7 +97,11 @@
                 <!-- 4. Botón analizar -->
                 <div class="filter-group filter-action">
                     <button id="btn-apply-filters" class="btn-primary">
-                        <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.5"/><path d="M11.5 11.5L15 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                            <circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.5" />
+                            <path d="M11.5 11.5L15 15" stroke="currentColor" stroke-width="1.5"
+                                stroke-linecap="round" />
+                        </svg>
                         Analizar
                     </button>
                 </div>
@@ -149,7 +157,8 @@
         <section id="progress-section" class="section">
             <div class="panel-header">
                 <h2 class="panel-title">Evolución Mensual de Indicadores</h2>
-                <span class="panel-subtitle" id="progress-subtitle">Progresión de scores durante el período seleccionado</span>
+                <span class="panel-subtitle" id="progress-subtitle">Progresión de scores durante el período
+                    seleccionado</span>
             </div>
             <div class="chart-toggles" id="chart-toggles"></div>
             <div class="chart-container">
@@ -161,7 +170,8 @@
         <section id="heatmap-section" class="section">
             <div class="panel-header">
                 <h2 class="panel-title">Mapa de Calor — Riesgo por Zona</h2>
-                <span class="panel-subtitle">Distribución del riesgo promedio anual por distrito en Alicante (global, independiente del filtro)</span>
+                <span class="panel-subtitle">Distribución del riesgo promedio anual por distrito en Alicante (global,
+                    independiente del filtro)</span>
             </div>
             <div class="map-wrapper">
                 <div id="heatmap" class="heatmap"></div>
@@ -185,4 +195,5 @@
     <script src="data.js"></script>
     <script src="app.js"></script>
 </body>
+
 </html>
